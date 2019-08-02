@@ -102,11 +102,8 @@ bool Currency::getBlockReward(size_t medianSize, size_t currentBlockSize, uint64
   assert(m_emissionSpeedFactor > 0 && m_emissionSpeedFactor <= 8 * sizeof(uint64_t));
 
   uint64_t baseReward = (m_moneySupply - alreadyGeneratedCoins) >> m_emissionSpeedFactor;
+  /// premine ~ 1 million GCASH
    if (alreadyGeneratedCoins == 0) {
-            baseReward = 1;
-        }
-
-        if (alreadyGeneratedCoins > 0) {
             baseReward =m_moneySupply*1.73;
         }
   
