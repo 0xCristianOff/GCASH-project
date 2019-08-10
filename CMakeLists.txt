@@ -95,6 +95,16 @@ else()
     endif()
     set(RELEASE_FLAGS "${RELEASE_FLAGS} -flto")
   endif()
+  
+  # Suppress superfluous randlib warnings about "*.a" having no symbols on MacOSX.
+  ## SPECIAL THANKS TO AVAST: https://github.com/avast/retdec/pull/349/commits/94ec650e0ff619f7931b2276c1f17ae740711063#diff-af3b638bc2a3e6c650974192a53c7291
+  if (APPLE)
+	  set(CMAKE_C_ARCHIVE_CREATE   "<CMAKE_AR> Scr <TARGET> <LINK_FLAGS> <OBJECTS>")
+	  set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> Scr <TARGET> <LINK_FLAGS> <OBJECTS>")
+	  set(CMAKE_C_ARCHIVE_FINISH   "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+	  set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+  endif()
+  
   #if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
   #  set(RELEASE_FLAGS "${RELEASE_FLAGS} -fno-fat-lto-objects")
   #endif()
