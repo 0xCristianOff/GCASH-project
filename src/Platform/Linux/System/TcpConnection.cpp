@@ -176,7 +176,7 @@ std::size_t TcpConnection::write(const uint8_t* data, size_t size) {
 
   ssize_t transferred = ::send(connection, (void *)data, size, MSG_NOSIGNAL);
   if (transferred == -1) {
-    ## fix -Werror=logical-op
+    // fix -Werror=logical-op
     bool anError = false;
     if (errno == EAGAIN) 
     {
