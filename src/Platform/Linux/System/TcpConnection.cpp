@@ -68,7 +68,7 @@ size_t TcpConnection::read(uint8_t* data, size_t size) {
   std::string message;
   ssize_t transferred = ::recv(connection, (void *)data, size, 0);
   if (transferred == -1) {
-    ### fix -Werror=logical-op 
+    /// fix -Werror=logical-op 
     bool anError = false;
     if (errno == EWOULDBLOCK) 
     {
