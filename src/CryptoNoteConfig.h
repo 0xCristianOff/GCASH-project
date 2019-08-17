@@ -109,7 +109,7 @@ const std::initializer_list<const char*> SEED_NODES = {
   // Europe based nodes
   "3.8.159.29:30332",
   //Asia based nodes
-  "13.25.48.199:30332",
+  "13.250.48.199:30332",
   // North America based nodes
   "18.234.208.177:30332"
   
