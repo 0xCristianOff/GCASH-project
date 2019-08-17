@@ -108,8 +108,11 @@ const std::initializer_list<const char*> SEED_NODES = {
   //"your_seed_ip2.com:8080",
   // Europe based nodes
   "3.8.159.29:30332",
-  "35.178.180.250:30332",
-  // new nodes coming soon is North America, South America and Asia
+  //Asia based nodes
+  "13.25.48.199:30332",
+  // North America based nodes
+  "18.234.208.177:30332"
+  
 };
 
 struct CheckpointData {
