@@ -107,6 +107,7 @@ const std::initializer_list<const char*> SEED_NODES = {
   //"your_seed_ip1.com:8080",
   //"your_seed_ip2.com:8080",
   // Europe based seeds
+  "3.8.159.29:30332",
   "35.178.180.250:30332",
   //Asia based seeds
   "13.25.48.199:30332",
