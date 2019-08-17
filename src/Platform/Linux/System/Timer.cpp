@@ -98,7 +98,7 @@ void Timer::sleep(std::chrono::nanoseconds duration) {
             {
               anError = true; 
             }
-            if (!anError)
+            if (anError)
             {
               timerContext->interrupted = true;
               dispatcher->pushContext(timerContext->context); 
