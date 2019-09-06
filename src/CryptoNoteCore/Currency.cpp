@@ -138,9 +138,94 @@ size_t Currency::maxBlockCumulativeSize(uint64_t height) const {
   return maxSize;
 }
 
-bool Currency::constructMinerTx(uint32_t height, size_t medianSize, uint64_t alreadyGeneratedCoins, size_t currentBlockSize,
-  uint64_t fee, const AccountPublicAddress& minerAddress, Transaction& tx,
-  const BinaryArray& extraNonce/* = BinaryArray()*/, size_t maxOuts/* = 1*/) const {
+/* Split each amount into uniform amounts, e.g.
+   1234567 = 1000000 + 200000 + 30000 + 4000 + 500 + 60 + 7 */
+std::vector<uint64_t> splitAmountIntoDenominations(uint64_t amount)
+{
+    std::vector<uint64_t> splitAmounts;
+
+    uint64_t multiplier = 1;
+
+    while (amount > 0)
+    {
+        uint64_t denomination = multiplier * (amount % 10);
+
+        /* If we have for example, 1010 - we want 1000 + 10,
+           not 1000 + 0 + 10 + 0 */
+        if (denomination != 0)
+        {
+            splitAmounts.push_back(denomination);
+        }
+
+        amount /= 10;
+
+        multiplier *= 10;
+    }
+
+    return splitAmounts;
+}
+
+std::tuple<TransactionOutput, bool> Currency::createMinerOutput(
+    uint64_t amount,
+    const AccountPublicAddress& address,
+    const Crypto::SecretKey transactionSecretKey,
+    const uint64_t outputIndex) const
+{
+    Crypto::KeyDerivation derivation;
+    Crypto::PublicKey outEphemeralPubKey;
+
+    TransactionOutput out;
+
+    bool r = Crypto::generate_key_derivation(
+        address.viewPublicKey,
+        transactionSecretKey,
+        derivation
+    );
+
+    if (!r)
+    {
+        logger(ERROR, BRIGHT_RED) << "while creating outs: failed to generate_key_derivation("
+                                  << address.viewPublicKey 
+                                  << ", " << transactionSecretKey << ")";
+
+        return std::make_tuple(out, false);
+    }
+
+    r = Crypto::derive_public_key(
+        derivation,
+        outputIndex,
+        address.spendPublicKey,
+        outEphemeralPubKey
+    );
+
+    if (!r)
+    {
+        logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive_public_key("
+                                  << derivation << ", " << outputIndex << ", "
+                                  << address.spendPublicKey << ")";
+
+        return std::make_tuple(out, false);
+    }
+
+    KeyOutput output;
+    output.key = outEphemeralPubKey;
+
+    out.amount = amount;
+    out.target = output;
+
+    return std::make_tuple(out, true);
+}
+
+bool Currency::constructMinerTx(
+    uint32_t height,
+    size_t medianSize,
+    uint64_t alreadyGeneratedCoins,
+    size_t currentBlockSize,
+    uint64_t fee,
+    const AccountPublicAddress& minerAddress,
+    Transaction& tx,
+    const BinaryArray& extraNonce) const {
+
   tx.inputs.clear();
   tx.outputs.clear();
   tx.extra.clear();
@@ -163,61 +248,114 @@ bool Currency::constructMinerTx(uint32_t height, size_t medianSize, uint64_t alr
     return false;
   }
 
-  std::vector<uint64_t> outAmounts;
-  decompose_amount_into_digits(blockReward, m_defaultDustThreshold,
-    [&outAmounts](uint64_t a_chunk) { outAmounts.push_back(a_chunk); },
-    [&outAmounts](uint64_t a_dust) { outAmounts.push_back(a_dust); });
+    double founderRewardPercent = 0;
 
-  if (!(1 <= maxOuts)) { logger(ERROR, BRIGHT_RED) << "max_out must be non-zero"; return false; }
-  while (maxOuts < outAmounts.size()) {
-    outAmounts[outAmounts.size() - 2] += outAmounts.back();
-    outAmounts.resize(outAmounts.size() - 1);
-  }
-
-  uint64_t summaryAmounts = 0;
-  for (size_t no = 0; no < outAmounts.size(); no++) {
-    Crypto::KeyDerivation derivation = boost::value_initialized<Crypto::KeyDerivation>();
-    Crypto::PublicKey outEphemeralPubKey = boost::value_initialized<Crypto::PublicKey>();
-
-    bool r = Crypto::generate_key_derivation(minerAddress.viewPublicKey, txkey.secretKey, derivation);
-
-    if (!(r)) {
-      logger(ERROR, BRIGHT_RED)
-        << "while creating outs: failed to generate_key_derivation("
-        << minerAddress.viewPublicKey << ", " << txkey.secretKey << ")";
-      return false;
+    /* Apply the founder reward past this height */
+    if (height >= CryptoNote::parameters::FOUNDER_REWARD_HEIGHT)
+    {
+        founderRewardPercent = CryptoNote::parameters::FOUNDER_REWARD_PERCENT;
     }
 
-    r = Crypto::derive_public_key(derivation, no, minerAddress.spendPublicKey, outEphemeralPubKey);
+    /* If no founder reward, then the miner gets everything. */
+    uint64_t minerReward = blockReward;
+    uint64_t founderReward = 0;
 
-    if (!(r)) {
-      logger(ERROR, BRIGHT_RED)
-        << "while creating outs: failed to derive_public_key("
-        << derivation << ", " << no << ", "
-        << minerAddress.spendPublicKey << ")";
-      return false;
+    AccountPublicAddress founderAddress;
+
+    /* Don't need this */
+    uint64_t ignore;
+
+    bool isValidFounderAddress = CryptoNote::parseAccountAddressString(
+        ignore,
+        founderAddress,
+        CryptoNote::parameters::FOUNDER_REWARD_ADDRESS
+    );
+
+    /* Bro, what are you doing? */
+    if (!isValidFounderAddress)
+    {
+        logger(ERROR, BRIGHT_RED) << "Founder address is not valid!";
     }
 
-    KeyOutput tk;
-    tk.key = outEphemeralPubKey;
+    /* Founder doesn't get a reward if he's an idiot, lol */
+    if (founderRewardPercent > 0 && isValidFounderAddress)
+    {
+        /* Figure out how much of the block should go to the founder */
+        founderReward = std::round(blockReward * (founderRewardPercent / 100));
 
-    TransactionOutput out;
-    summaryAmounts += out.amount = outAmounts[no];
-    out.target = tk;
-    tx.outputs.push_back(out);
-  }
+        /* Give the rest to the miner */
+        minerReward = blockReward - founderReward;
+    }
 
-  if (!(summaryAmounts == blockReward)) {
-    logger(ERROR, BRIGHT_RED) << "Failed to construct miner tx, summaryAmounts = " << summaryAmounts << " not equal blockReward = " << blockReward;
-    return false;
-  }
+    /* Split the amounts in denominations.. */
+    const std::vector<uint64_t> minerAmounts = splitAmountIntoDenominations(minerReward);
+    const std::vector<uint64_t> founderAmounts = splitAmountIntoDenominations(founderReward);
 
-  tx.version = CURRENT_TRANSACTION_VERSION;
-  //lock
-  tx.unlockTime = height + m_minedMoneyUnlockWindow;
-  tx.inputs.push_back(in);
-  return true;
-}
+    uint64_t totalSent = 0;
+
+    int outputIndex = 0;
+
+    TransactionOutput output;
+    bool success;
+
+    for (const auto amount : minerAmounts)
+    {
+        std::tie(output, success) = createMinerOutput(
+            amount,
+            minerAddress,
+            txkey.secretKey,
+            outputIndex
+        );
+
+        if (!success)
+        {
+            return false;
+        }
+
+        tx.outputs.push_back(output);
+
+        totalSent += amount;
+
+        outputIndex++;
+    }
+
+    for (const auto amount : founderAmounts)
+    {
+        std::tie(output, success) = createMinerOutput(
+            amount,
+            founderAddress,
+            txkey.secretKey,
+            outputIndex
+        );
+
+        if (!success)
+        {
+            return false;
+        }
+
+        tx.outputs.push_back(output);
+
+        totalSent += amount;
+
+        outputIndex++;
+    }
+
+    if (totalSent != blockReward)
+    {
+        logger(ERROR, BRIGHT_RED) << "Failed to construct miner tx, total sent = "
+                                  << totalSent << " not equal blockReward = "
+                                  << blockReward;
+
+        return false;
+    }
+
+    tx.version = CURRENT_TRANSACTION_VERSION;
+
+    /* Unlock window for mined money */
+    tx.unlockTime = height + m_minedMoneyUnlockWindow;
+    tx.inputs.push_back(in);
+
+    return true;}
 
 bool Currency::isFusionTransaction(const std::vector<uint64_t>& inputsAmounts, const std::vector<uint64_t>& outputsAmounts, size_t size) const {
   if (size > fusionTxMaxSize()) {
