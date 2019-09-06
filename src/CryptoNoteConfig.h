@@ -61,6 +61,18 @@ const size_t   FUSION_TX_MAX_SIZE                            = CRYPTONOTE_BLOCK_
 const size_t   FUSION_TX_MIN_INPUT_COUNT                     = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO              = 4;
 
+/* The address for founder rewards to go to */
+const std::string FOUNDER_REWARD_ADDRESS                     = "gcasokCGNxSKJraN2NqaPR29GakNnZHmu6gc2dh7JGmF2kDorqoj9pc3p8q4PxGvG8aFa3pzn5mEWf3xETw9LJSd22gjkbAV1G";
+
+/* We need the private view key to verify the reward is actually going to the founder */
+const std::string FOUNDER_REWARD_PRIVATE_VIEW_KEY            = "1bcf0435dff2282c11cb5ca746fc6efeb35a6703a2cc896fe7e061de87521b0b";
+
+/* Percent of the block reward to go to the founder */
+const double FOUNDER_REWARD_PERCENT                          = 5.0;
+
+/* The height to start distributing founder rewards */
+const uint64_t FOUNDER_REWARD_HEIGHT                         = 0;
+
 const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.dat";
 const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.dat";
 const char     CRYPTONOTE_BLOCKSCACHE_FILENAME[]             = "blockscache.dat";

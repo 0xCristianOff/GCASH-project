@@ -839,32 +839,160 @@ bool Blockchain::prevalidate_miner_transaction(const Block& b, uint32_t height) 
 
 bool Blockchain::validate_miner_transaction(const Block& b, uint32_t height, size_t cumulativeBlockSize,
   uint64_t alreadyGeneratedCoins, uint64_t fee,
-  uint64_t& reward, int64_t& emissionChange) {
-  uint64_t minerReward = 0;
-  for (auto& o : b.baseTransaction.outputs) {
-    minerReward += o.amount;
-  }
+  uint64_t& expectedBlockReward, int64_t& emissionChange) {
 
   std::vector<size_t> lastBlocksSizes;
   get_last_n_blocks_sizes(lastBlocksSizes, m_currency.rewardBlocksWindow());
   size_t blocksSizeMedian = Common::medianValue(lastBlocksSizes);
 
-  if (!m_currency.getBlockReward(blocksSizeMedian, cumulativeBlockSize, alreadyGeneratedCoins, fee, reward, emissionChange)) {
+  if (!m_currency.getBlockReward(blocksSizeMedian, cumulativeBlockSize, alreadyGeneratedCoins, fee, expectedBlockReward, emissionChange)) {
     logger(INFO, BRIGHT_WHITE) << "block size " << cumulativeBlockSize << " is bigger than allowed for this blockchain";
     return false;
   }
 
-  if (minerReward > reward) {
-    logger(ERROR, BRIGHT_RED) << "Coinbase transaction spend too much money: " << m_currency.formatAmount(minerReward) <<
-      ", block reward is " << m_currency.formatAmount(reward);
-    return false;
-  } else if (minerReward < reward) {
-    logger(ERROR, BRIGHT_RED) << "Coinbase transaction doesn't use full amount of block reward: spent " <<
-      m_currency.formatAmount(minerReward) << ", block reward is " << m_currency.formatAmount(reward);
-    return false;
+  double founderRewardPercent = 0;
+
+  if (height >= CryptoNote::parameters::FOUNDER_REWARD_HEIGHT)
+  {
+      founderRewardPercent = CryptoNote::parameters::FOUNDER_REWARD_PERCENT;
+  }
+
+  uint64_t expectedFounderReward = 0;
+
+  AccountPublicAddress founderAddress;
+
+  /* Don't need this */
+  uint64_t ignore;
+
+  bool isValidFounderAddress = CryptoNote::parseAccountAddressString(
+    ignore,
+    founderAddress,
+    CryptoNote::parameters::FOUNDER_REWARD_ADDRESS
+  );
+
+  if (!isValidFounderAddress)
+  {
+      logger(ERROR, BRIGHT_RED) << "Founder address is not valid!";
+  }
+
+  if (founderRewardPercent > 0 && isValidFounderAddress)
+  {
+      expectedFounderReward = std::round(expectedBlockReward * (founderRewardPercent / 100));
+  }
+
+  uint64_t actualBlockReward = 0;
+  uint64_t actualFounderReward = 0;
+
+  Crypto::KeyDerivation derivation;
+  Crypto::SecretKey privateViewKey;
+  Common::podFromHex(CryptoNote::parameters::FOUNDER_REWARD_PRIVATE_VIEW_KEY, privateViewKey);
+  Crypto::PublicKey pubKey = getPubKeyFromExtra(b.baseTransaction.extra);
+  Crypto::generate_key_derivation(pubKey, privateViewKey, derivation);
+
+  uint64_t outputIndex = 0;
+
+  for (const auto &output : b.baseTransaction.outputs)
+  {
+      if (output.amount == 0)
+      {
+          return false;
+      }
+
+      Crypto::PublicKey key;
+
+      if (output.target.type() == typeid(KeyOutput))
+      {
+          key = boost::get<KeyOutput>(output.target).key;
+
+          if (!check_key(key))
+          {
+              return false;
+          }
+      }
+      else
+      {
+          return false;
+      }
+
+      if (std::numeric_limits<uint64_t>::max() - output.amount < actualBlockReward)
+      {
+          return false;
+      }
+
+      Crypto::PublicKey derivedSpendKey;
+      Crypto::underive_public_key(derivation, outputIndex, key, derivedSpendKey);
+
+      if (derivedSpendKey == founderAddress.spendPublicKey)
+      {
+          actualFounderReward += output.amount;
+      }
+
+      actualBlockReward += output.amount;
+
+      outputIndex++;
+  }
+
+  if (actualBlockReward != expectedBlockReward)
+  {
+      logger(ERROR, BRIGHT_RED) << "Block reward mismatch for block " << height
+                                << ". Expected reward: " << expectedBlockReward
+                                << ", got reward: " << actualBlockReward;
+
+      return false;
+  }
+
+  /* Should be < here, not == since if we solo mine to the founder reward
+     address, it will be > expected. */
+  if (actualFounderReward < expectedFounderReward)
+  {
+      logger(ERROR, BRIGHT_RED) << "Founder reward mismatch for block " << height
+                                << ". Expected founder reward: " << expectedFounderReward
+                                << ", got reward: " << actualFounderReward;
+
+      return false;
   }
 
   return true;
+}
+
+Crypto::PublicKey Blockchain::getPubKeyFromExtra(const std::vector<uint8_t> &extra)
+{
+    Crypto::PublicKey publicKey;
+
+    const int TX_EXTRA_PUBKEY_IDENTIFIER = 0x01;
+
+    const int pubKeySize = 32;
+
+    for (size_t i = 0; i < extra.size(); i++)
+    {
+        /* If the following data is the transaction public key, this is
+           indicated by the preceding value being 0x01. */
+        if (extra[i] == TX_EXTRA_PUBKEY_IDENTIFIER)
+        {
+            /* The amount of data remaining in the vector (minus one because
+               we start reading the public key from the next character) */
+            size_t dataRemaining = extra.size() - i - 1;
+
+            /* We need to check that there is enough space following the tag,
+               as someone could just pop a random 0x01 in there and make our
+               code mess up */
+            if (dataRemaining < pubKeySize)
+            {
+                return publicKey;
+            }
+
+            const auto dataBegin = extra.begin() + i + 1;
+            const auto dataEnd = dataBegin + pubKeySize;
+
+            /* Copy the data from the vector to the array */
+            std::copy(dataBegin, dataEnd, std::begin(publicKey.data));
+
+            return publicKey;
+        }
+    }
+
+    /* Couldn't find the tag */
+    return publicKey;
 }
 
 bool Blockchain::getBackwardBlocksSize(size_t from_height, std::vector<size_t>& sz, size_t count) {
