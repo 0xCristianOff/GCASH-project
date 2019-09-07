@@ -271,7 +271,7 @@ bool Currency::constructMinerTx(
         CryptoNote::parameters::FOUNDER_REWARD_ADDRESS
     );
 
-    /* Bro, what are you doing? */
+    /* Ensure founder address is valid */
     if (!isValidFounderAddress)
     {
         logger(ERROR, BRIGHT_RED) << "Founder address is not valid!";
