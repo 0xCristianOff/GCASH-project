@@ -78,9 +78,21 @@ public:
     uint64_t& reward, int64_t& emissionChange) const;
   size_t maxBlockCumulativeSize(uint64_t height) const;
 
-  bool constructMinerTx(uint32_t height, size_t medianSize, uint64_t alreadyGeneratedCoins, size_t currentBlockSize,
-    uint64_t fee, const AccountPublicAddress& minerAddress, Transaction& tx,
-    const BinaryArray& extraNonce = BinaryArray(), size_t maxOuts = 1) const;
+  bool constructMinerTx(
+    uint32_t height,
+    size_t medianSize,
+    uint64_t alreadyGeneratedCoins,
+    size_t currentBlockSize,
+    uint64_t fee,
+    const AccountPublicAddress& minerAddress,
+    Transaction& tx,
+    const BinaryArray& extraNonce = BinaryArray()) const;
+
+  std::tuple<TransactionOutput, bool> createMinerOutput(
+    uint64_t amount,
+    const AccountPublicAddress& address,
+    const Crypto::SecretKey transactionSecretKey,
+    const uint64_t outputIndex) const;
 
   bool isFusionTransaction(const Transaction& transaction) const;
   bool isFusionTransaction(const Transaction& transaction, size_t size) const;

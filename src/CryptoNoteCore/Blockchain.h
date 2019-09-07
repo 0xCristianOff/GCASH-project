@@ -296,6 +296,8 @@ namespace CryptoNote {
 
     void sendMessage(const BlockchainMessage& message);
 
+    Crypto::PublicKey getPubKeyFromExtra(const std::vector<uint8_t> &extra);
+
     friend class LockedBlockchainStorage;
   };
 
