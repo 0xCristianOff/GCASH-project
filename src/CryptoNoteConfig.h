@@ -62,16 +62,16 @@ const size_t   FUSION_TX_MIN_INPUT_COUNT                     = 12;
 const size_t   FUSION_TX_MIN_IN_OUT_COUNT_RATIO              = 4;
 
 /* The address for founder rewards to go to */
-const std::string FOUNDER_REWARD_ADDRESS                     = "gcasokCGNxSKJraN2NqaPR29GakNnZHmu6gc2dh7JGmF2kDorqoj9pc3p8q4PxGvG8aFa3pzn5mEWf3xETw9LJSd22gjkbAV1G";
+const std::string FOUNDER_REWARD_ADDRESS                     = "gcast6PqZPoUqZ4dsbALxZY29pnLJQedq1sVShZtaYEr8Cz4Lt8VZw4PVjkjghcdPUEMdYsed6nQLXXzWbVw8j9a7wSi4DnBLB";
 
 /* We need the private view key to verify the reward is actually going to the founder */
-const std::string FOUNDER_REWARD_PRIVATE_VIEW_KEY            = "1bcf0435dff2282c11cb5ca746fc6efeb35a6703a2cc896fe7e061de87521b0b";
+const std::string FOUNDER_REWARD_PRIVATE_VIEW_KEY            = "9882a3704a655ea72b6f396e6381d247a1f6969c828570d9708254d2e31a500a";
 
 /* Percent of the block reward to go to the founder */
 const double FOUNDER_REWARD_PERCENT                          = 5.0;
 
 /* The height to start distributing founder rewards */
-const uint64_t FOUNDER_REWARD_HEIGHT                         = 0;
+const uint64_t FOUNDER_REWARD_HEIGHT                         = 14000;
 
 const char     CRYPTONOTE_BLOCKS_FILENAME[]                  = "blocks.dat";
 const char     CRYPTONOTE_BLOCKINDEXES_FILENAME[]            = "blockindexes.dat";
