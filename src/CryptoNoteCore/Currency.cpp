@@ -277,7 +277,7 @@ bool Currency::constructMinerTx(
         logger(ERROR, BRIGHT_RED) << "Founder address is not valid!";
     }
 
-    /* Founder doesn't get a reward if he's an idiot, lol */
+    /* Founder doesn't get a reward if reward is not set */
     if (founderRewardPercent > 0 && isValidFounderAddress)
     {
         /* Figure out how much of the block should go to the founder */
